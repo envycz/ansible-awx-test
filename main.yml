@@ -1,0 +1,93 @@
+---
+- hosts: ansible-test-1
+  become: true
+
+  handlers:
+    - name: restart ssh
+      service:
+        name: sshd
+        state: restarted
+
+  tasks:
+    - name: Tell SELinux about SSH new port
+      seport:
+        ports: 2849
+        proto: tcp
+        setype: ssh_port_t
+        state: present
+
+    - name: make sure ssh is more secure
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+        validate: "sshd -T -f %s"
+      with_items:
+        - regexp: "^PasswordAuthentication"
+          line: "PasswordAuthentication no"
+        - regexp: "^PermitRootLogin"
+          line: "PermitRootLogin no"
+        - regexp: "^Port"
+          line: "Port 2849"
+      notify: restart ssh
+
+    - name: add user johndoe
+      user:
+        name: johndoe
+
+    - name: adding user to sudoers
+      lineinfile:
+        dest: /etc/sudoers
+        regexp: "^johdoe"
+        line: "johndoe ALL=(ALL) NOPASSWD: ALL"
+        state: present
+        validate: "visudo -cf %s"
+
+    - name: remove unused packages
+      package:
+        name:
+          - httpd
+          - nano
+          - mailutils
+        state: absent
+
+    - name: edit file permissions
+      file:
+        path: /etc/ssh/sshd_config
+        mode: 0600
+
+    - name: set up autoupdates
+      yum:
+        name: yum-cron
+        state: present
+
+    - name: ensure auto updates are running
+      service:
+        name: yum-cron
+        state: started
+        enabled: yes
+
+    - name: install firewalld
+      package:
+        name: firewalld
+        state: present
+
+    - name: configure ports on firewalld
+      firewalld:
+        state: "{{ item.state }}"
+        port: "{{ item.port }}"
+        zone: external
+        immediate: yes
+        permanent: yes
+      with_items:
+        - state: "enabled"
+          port: 2849/tcp
+        - state: "enabled"
+          port: 123/udp
+
+    - name: ensure firewalld is running
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
