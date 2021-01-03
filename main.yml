@@ -8,6 +8,7 @@
         name: sshd
         state: restarted
 
+  tasks:
     - name: make sure ssh is more secure
       lineinfile:
         dest: /etc/ssh/sshd_config
